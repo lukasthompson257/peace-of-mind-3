@@ -1,10 +1,8 @@
 import { useState, useCallback } from "react";
-import { S, PALETTE, ICONS, GOAL_ICONS, getMYLabel, getMYKey, aiCategorize, aiParseNote, thisMonthKey, MONTHS } from "./lib/config.js";
+import { S, PALETTE, ICONS, GOAL_ICONS, getMYLabel, getMYKey, aiCategorize, aiParseNote, thisMonthKey, DEFAULT_TAX_CATEGORIES } from "./lib/config.js";
 import { useStore } from "./lib/useStore.js";
-import { IconPicker, ColorPicker, UserToggle } from "./components/UI.jsx";
-import { ProgressBar, SectionTitle } from "./components/UI.jsx";
+import { IconPicker, ColorPicker, UserToggle, ProgressBar, SectionTitle } from "./components/UI.jsx";
 
-// Views
 import Dashboard    from "./views/Dashboard.jsx";
 import NetWorth     from "./views/NetWorth.jsx";
 import Bills        from "./views/Bills.jsx";
@@ -18,10 +16,10 @@ fontLink.href = "https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;6
 document.head.appendChild(fontLink);
 
 const NAV_GROUPS = [
-  { label:"Spending", items:[["dashboard","Overview"],["add","+ Add"],["notes","\u{1F4CB} Import"],["transactions","History"],["budgets","Budgets"],["trends","\u{1F4C8} Trends"]] },
-  { label:"Planning", items:[["savings","\u{1F4B0} Savings"],["bills","\u{1F4C5} Bills"],["debt","\u{1F4B3} Debt"]] },
-  { label:"Wealth",   items:[["networth","\u{1F3E6} Net Worth"],["tax","\u{1F9FE} Tax"],["review","\u{1F386} Review"]] },
-  { label:"Goals",    items:[["goals","\u{1F3AF} Goals"]] },
+  { label:"Spending", items:[["dashboard","Overview"],["add","+ Add"],["notes","📋 Import"],["receipts","🧾 Receipts"],["transactions","History"],["budgets","Budgets"],["trends","📈 Trends"]] },
+  { label:"Planning", items:[["savings","💰 Savings"],["bills","📅 Bills"],["debt","💳 Debt"]] },
+  { label:"Wealth",   items:[["networth","🏦 Net Worth"],["tax","🧾 Tax"],["review","🎆 Review"]] },
+  { label:"Goals",    items:[["goals","🎯 Goals"]] },
 ];
 
 export default function App() {
@@ -32,26 +30,39 @@ export default function App() {
 
   const [view, setView]                   = useState("dashboard");
   const [selectedMonth, setSelectedMonth] = useState(thisMonthKey());
-  const [newExp, setNewExp]               = useState({ description:"", amount:"", category:"Groceries", date:new Date().toISOString().split("T")[0], user:"You" });
+  const [newExp, setNewExp]               = useState({ description:"", amount:"", category:"Groceries", date:new Date().toISOString().split("T")[0], user:"You", taxDeductible:false, taxCategory:"Other" });
   const [aiLoading, setAiLoading]         = useState(false);
   const [noteText, setNoteText]           = useState("");
   const [noteLoading, setNoteLoading]     = useState(false);
   const [parsed, setParsed]               = useState([]);
   const [selected, setSelected]           = useState([]);
   const [noteError, setNoteError]         = useState("");
+  const [receiptMode, setReceiptMode]     = useState("text"); // text | image
+  const [receiptText, setReceiptText]     = useState("");
+  const [receiptImage, setReceiptImage]   = useState(null);  // base64
+  const [receiptLoading, setReceiptLoading] = useState(false);
+  const [receiptParsed, setReceiptParsed] = useState([]);
+  const [receiptSelected, setReceiptSelected] = useState([]);
+  const [receiptError, setReceiptError]   = useState("");
+  const [receiptDate, setReceiptDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [receiptUser, setReceiptUser]     = useState("You");
+  const [receiptTaxDeductible, setReceiptTaxDeductible] = useState(false);
+  const [receiptTaxCategory, setReceiptTaxCategory]     = useState("Other");
   const [showNewCat, setShowNewCat]       = useState(false);
-  const [newCat, setNewCat]               = useState({ name:"", icon:"\u{1F3E0}", color:PALETTE[0], budget:100 });
+  const [newCat, setNewCat]               = useState({ name:"", icon:"🏠", color:PALETTE[0], budget:100 });
   const [showNewGoal, setShowNewGoal]     = useState(false);
-  const [newGoal, setNewGoal]             = useState({ name:"", icon:"\u{1F3AF}", color:PALETTE[2], target:"", deadline:"" });
+  const [newGoal, setNewGoal]             = useState({ name:"", icon:"🎯", color:PALETTE[2], target:"", deadline:"" });
   const [contributingTo, setContributingTo] = useState(null);
   const [contribAmount, setContribAmount]   = useState("");
   const [contribNote, setContribNote]       = useState("");
   const [filterUser, setFilterUser]         = useState("All");
+  const [taxCategories, setTaxCategories]   = useState(DEFAULT_TAX_CATEGORIES);
+  const [newTaxCatInput, setNewTaxCatInput] = useState("");
 
   if (loading) return (
     <div style={{ ...S.app, display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh" }}>
       <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:40, marginBottom:12 }}>💸</div>
+        <div style={{ fontSize:40, marginBottom:12 }}>🧘</div>
         <div style={{ fontSize:16, color:"#6b7280" }}>Loading Peace of Mind…</div>
       </div>
     </div>
@@ -75,7 +86,11 @@ export default function App() {
     const aiCat = await aiCategorize(newExp.description, categories.map(c=>c.name).join(", "));
     const entry = { ...newExp, amount:parseFloat(newExp.amount), category:aiCat&&categories.find(c=>c.name===aiCat)?aiCat:newExp.category, id:Date.now() };
     await setAndSaveExpenses([entry,...expenses]);
-    setNewExp({ description:"", amount:"", category:"Groceries", date:new Date().toISOString().split("T")[0], user:newExp.user });
+    if (newExp.taxDeductible) {
+      const taxEntry = { id:Date.now()+1, description:entry.description, amount:entry.amount, date:entry.date, category:newExp.taxCategory||"Other", notes:"" };
+      await setAndSaveTaxItems([...taxItems, taxEntry]);
+    }
+    setNewExp({ description:"", amount:"", category:"Groceries", date:new Date().toISOString().split("T")[0], user:newExp.user, taxDeductible:false, taxCategory:"Other" });
     setAiLoading(false);
   }
 
@@ -93,6 +108,58 @@ export default function App() {
     setNoteLoading(false);
   }
 
+  async function parseReceipt() {
+    if (receiptMode === "text" && !receiptText.trim()) return;
+    if (receiptMode === "image" && !receiptImage) return;
+    setReceiptLoading(true); setReceiptError(""); setReceiptParsed([]);
+    try {
+      const catNames = categories.map(c=>c.name).join(", ");
+      const prompt = `Extract all individual line items and their prices from this receipt. Return a JSON array where each item has: description (string), amount (number, positive), category (pick the best match from: ${catNames}). Only include actual purchased items with prices — ignore subtotals, tax lines, store names, addresses, dates. Reply ONLY with valid JSON array, no markdown.`;
+      const messages = receiptMode === "image"
+        ? [{ role:"user", content:[{ type:"image", source:{ type:"base64", media_type:receiptImage.type, data:receiptImage.data }},{ type:"text", text:prompt }]}]
+        : [{ role:"user", content: prompt + "\n\nReceipt:\n" + receiptText }];
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method:"POST", headers:{"Content-Type":"application/json"},
+        body: JSON.stringify({ model:"claude-sonnet-4-20250514", max_tokens:1500, messages })
+      });
+      const data = await res.json();
+      const raw = data.content?.[0]?.text?.trim().replace(/```json|```/g,"").trim();
+      const items = JSON.parse(raw);
+      const withMeta = items.map((it,i)=>({...it, id:Date.now()+i, date:receiptDate, user:receiptUser}));
+      setReceiptParsed(withMeta);
+      setReceiptSelected(withMeta.map(it=>it.id));
+    } catch(e) { setReceiptError("Couldn't parse receipt. Try again or switch input mode."); }
+    setReceiptLoading(false);
+  }
+
+  async function importReceipt() {
+    const toImport = receiptParsed.filter(it=>receiptSelected.includes(it.id));
+    await setAndSaveExpenses([...toImport, ...expenses]);
+    if (receiptTaxDeductible && toImport.length > 0) {
+      const taxEntries = toImport.map((it,i) => ({
+        id: Date.now()+i+9000, description: it.description,
+        amount: it.amount, date: it.date,
+        category: receiptTaxCategory, notes: "via receipt scanner"
+      }));
+      await setAndSaveTaxItems([...taxItems, ...taxEntries]);
+    }
+    setReceiptText(""); setReceiptImage(null); setReceiptParsed([]); setReceiptSelected([]);
+    setReceiptTaxDeductible(false);
+    setView("dashboard");
+  }
+
+  function handleReceiptImageUpload(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const base64 = ev.target.result.split(",")[1];
+      setReceiptImage({ data:base64, type:file.type });
+      setReceiptParsed([]); setReceiptSelected([]);
+    };
+    reader.readAsDataURL(file);
+  }
+
   async function importSelected() {
     await setAndSaveExpenses([...parsed.filter(it=>selected.includes(it.id)),...expenses]);
     setNoteText(""); setParsed([]); setSelected([]); setView("dashboard");
@@ -101,7 +168,7 @@ export default function App() {
   async function addCategory() {
     if (!newCat.name) return;
     await setAndSaveCategories([...categories, {...newCat,budget:parseFloat(newCat.budget)||100}]);
-    setNewCat({name:"",icon:"\u{1F3E0}",color:PALETTE[0],budget:100}); setShowNewCat(false);
+    setNewCat({name:"",icon:"🏠",color:PALETTE[0],budget:100}); setShowNewCat(false);
   }
 
   const DEFAULT_CATS = ["Groceries","Dining Out","Transport","Entertainment","Utilities","Shopping","Health","Travel","Skincare"];
@@ -118,7 +185,7 @@ export default function App() {
     if (!newGoal.name||!newGoal.target) return;
     const g = {...newGoal,target:parseFloat(newGoal.target),id:Date.now(),contributions:[],createdAt:new Date().toISOString().split("T")[0]};
     await setAndSaveGoals([...goals,g]);
-    setNewGoal({name:"",icon:"\u{1F3AF}",color:PALETTE[2],target:"",deadline:""}); setShowNewGoal(false);
+    setNewGoal({name:"",icon:"🎯",color:PALETTE[2],target:"",deadline:""}); setShowNewGoal(false);
   }
 
   async function addContribution(goalId) {
@@ -135,10 +202,10 @@ export default function App() {
 
   function exportCSV() {
     const headers=["Date","Description","Amount","Category","Person"];
-    const rows=[...expenses].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,`"${e.description.replace(/"/g,'\'\'')}'`,e.amount.toFixed(2),e.category,e.user]);
+    const rows=[...expenses].sort((a,b)=>a.date.localeCompare(b.date)).map(e=>[e.date,`"${e.description.replace(/"/g,'')}'`,e.amount.toFixed(2),e.category,e.user]);
     const csv=[headers,...rows].map(r=>r.join(",")).join("\n");
     const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    a.download='pennies-export.csv'; a.click();
+    a.download='peace-of-mind-export.csv'; a.click();
   }
 
   function getTrendsData() {
@@ -152,9 +219,9 @@ export default function App() {
       <div style={{position:"sticky",top:0,zIndex:100,background:"rgba(13,15,20,0.92)",backdropFilter:"blur(16px)",borderBottom:"1px solid rgba(255,255,255,0.06)",padding:"10px 16px"}}>
         <div style={{maxWidth:960,margin:"0 auto"}}>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
-            <div style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>\u{1F4B8} Pennies</div>
+            <div style={{fontSize:20,fontWeight:800,letterSpacing:"-0.5px"}}>🧘 Peace of Mind</div>
             <div style={{fontSize:11,color:syncing?"#FFA726":lastSync?"#34d399":"#4b5563"}}>
-              {syncing?"\u{21F3} Saving\u2026":lastSync?`\u2713 Synced ${lastSync.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`:"● Connecting\u2026"}
+              {syncing?"⟳ Saving…":lastSync?`✓ Synced ${lastSync.toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"})}`:"● Connecting…"}
             </div>
           </div>
           <div style={{display:"flex",gap:16,overflowX:"auto",paddingBottom:2}}>
@@ -178,7 +245,7 @@ export default function App() {
 
         {view==="add" && (
           <div style={{maxWidth:480,margin:"0 auto"}}>
-            <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>\u{2795} Add Expense</div>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>➕ Add Expense</div>
             <div style={S.card}>
               <UserToggle value={newExp.user} onChange={u=>setNewExp(f=>({...f,user:u}))} />
               <div style={{marginTop:14}}><label style={S.label}>Description</label>
@@ -191,19 +258,41 @@ export default function App() {
                 <select style={S.input} value={newExp.category} onChange={e=>setNewExp(f=>({...f,category:e.target.value}))}>
                   {categories.map(c=><option key={c.name}>{c.icon} {c.name}</option>)}
                 </select></div>
-              <button style={{...S.btn(),marginTop:14}} onClick={addExpense} disabled={aiLoading}>{aiLoading?"\u{1F916} Categorizing\u2026":"Add Expense"}</button>
+              <div style={{marginTop:14,padding:"12px 14px",background:"rgba(255,255,255,0.04)",borderRadius:10,border:`1px solid ${newExp.taxDeductible?"rgba(52,211,153,0.3)":"rgba(255,255,255,0.08)"}`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setNewExp(f=>({...f,taxDeductible:!f.taxDeductible}))}>
+                  <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${newExp.taxDeductible?"#34d399":"rgba(255,255,255,0.2)"}`,background:newExp.taxDeductible?"#34d399":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                    {newExp.taxDeductible&&<span style={{color:"#000",fontSize:12,fontWeight:700}}>✓</span>}
+                  </div>
+                  <span style={{fontSize:13,color:newExp.taxDeductible?"#34d399":"#9ca3af",fontWeight:500}}>🧾 Tax deductible</span>
+                </div>
+                {newExp.taxDeductible&&(
+                  <div style={{marginTop:10}}>
+                    <label style={S.label}>Tax Category</label>
+                    <select style={S.input} value={newExp.taxCategory||"Other"} onChange={e=>setNewExp(f=>({...f,taxCategory:e.target.value}))}>
+                      {taxCategories.map(c=><option key={c}>{c}</option>)}
+                    </select>
+                    <div style={{display:"flex",gap:8,marginTop:8}}>
+                      <input style={{...S.input,fontSize:12,padding:"7px 10px"}} placeholder="+ New category…" value={newTaxCatInput} onChange={e=>setNewTaxCatInput(e.target.value)}
+                        onKeyDown={e=>{if(e.key==="Enter"&&newTaxCatInput.trim()){const c=newTaxCatInput.trim();setTaxCategories(t=>[...t,c]);setNewExp(f=>({...f,taxCategory:c}));setNewTaxCatInput("");}}} />
+                      <button onClick={()=>{if(newTaxCatInput.trim()){const c=newTaxCatInput.trim();setTaxCategories(t=>[...t,c]);setNewExp(f=>({...f,taxCategory:c}));setNewTaxCatInput("");}}}
+                        style={{padding:"7px 14px",borderRadius:10,border:"1px solid rgba(52,211,153,0.3)",background:"rgba(52,211,153,0.1)",color:"#34d399",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:12,whiteSpace:"nowrap"}}>Add</button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <button style={{...S.btn(),marginTop:14}} onClick={addExpense} disabled={aiLoading}>{aiLoading?"🤖 Categorizing…":"Add Expense"}</button>
             </div>
           </div>
         )}
 
         {view==="notes" && (
           <div style={{maxWidth:540,margin:"0 auto"}}>
-            <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>\u{1F4CB} Import from Notes</div>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>📋 Import from Notes</div>
             <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Paste your iPhone note and AI will extract the expenses</div>
             <div style={S.card}>
               <label style={S.label}>Paste your note</label>
               <textarea value={noteText} onChange={e=>setNoteText(e.target.value)} placeholder={"Starbucks $6.50\nWhole Foods $94.20\nUber $12.00"} style={{...S.input,height:160,resize:"vertical",lineHeight:1.6}} />
-              <button style={{...S.btn(),marginTop:12}} onClick={parseNote} disabled={noteLoading}>{noteLoading?"\u{1F916} Parsing\u2026":"Extract Expenses"}</button>
+              <button style={{...S.btn(),marginTop:12}} onClick={parseNote} disabled={noteLoading}>{noteLoading?"🤖 Parsing…":"Extract Expenses"}</button>
               {noteError&&<div style={{color:"#ff6b6b",fontSize:13,marginTop:8}}>{noteError}</div>}
             </div>
             {parsed.length>0&&(
@@ -217,9 +306,9 @@ export default function App() {
                   return (
                     <div key={it.id} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 0",borderBottom:"1px solid rgba(255,255,255,0.04)",cursor:"pointer"}} onClick={()=>setSelected(s=>s.includes(it.id)?s.filter(x=>x!==it.id):[...s,it.id])}>
                       <div style={{width:18,height:18,borderRadius:5,border:`2px solid ${selected.includes(it.id)?"#6366f1":"rgba(255,255,255,0.2)"}`,background:selected.includes(it.id)?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                        {selected.includes(it.id)&&<span style={{color:"#fff",fontSize:11}}>\u{2713}</span>}
+                        {selected.includes(it.id)&&<span style={{color:"#fff",fontSize:11}}>✓</span>}
                       </div>
-                      <span style={{fontSize:16}}>{cat?.icon||"\u{1F4B8}"}</span>
+                      <span style={{fontSize:16}}>{cat?.icon||"💸"}</span>
                       <div style={{flex:1}}><div style={{fontSize:14}}>{it.description}</div><div style={{fontSize:11,color:"#4b5563"}}>{it.category}</div></div>
                       <div style={{fontWeight:700,fontFamily:"monospace"}}>${it.amount.toFixed(2)}</div>
                     </div>
@@ -231,13 +320,161 @@ export default function App() {
           </div>
         )}
 
+        
+        {view==="receipts" && (
+          <div style={{maxWidth:540,margin:"0 auto"}}>
+            <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>🧾 Receipt Scanner</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>Paste an email receipt, or upload a photo or screenshot</div>
+
+            {/* Mode toggle */}
+            <div style={{display:"flex",gap:6,marginBottom:14}}>
+              {[["text","📧 Email / Text"],["image","📷 Photo / Screenshot"]].map(([mode,label])=>(
+                <button key={mode} onClick={()=>{setReceiptMode(mode);setReceiptParsed([]);setReceiptSelected([]);setReceiptError("");}}
+                  style={{flex:1,padding:"10px",borderRadius:11,border:"1px solid",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,
+                    borderColor:receiptMode===mode?"#6366f1":"rgba(255,255,255,0.1)",
+                    background:receiptMode===mode?"rgba(99,102,241,0.15)":"rgba(255,255,255,0.03)",
+                    color:receiptMode===mode?"#a5b4fc":"#6b7280"}}>
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div style={S.card}>
+              {/* Who + date */}
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
+                <div>
+                  <label style={S.label}>Who paid?</label>
+                  <div style={{display:"flex",gap:6}}>
+                    {["You","Wife"].map(u=>(
+                      <button key={u} onClick={()=>setReceiptUser(u)} style={{flex:1,padding:"8px",borderRadius:9,border:"1px solid",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13,
+                        borderColor:receiptUser===u?"#6366f1":"rgba(255,255,255,0.1)",
+                        background:receiptUser===u?"rgba(99,102,241,0.15)":"transparent",
+                        color:receiptUser===u?"#a5b4fc":"#6b7280"}}>
+                        {u==="You"?"👤":"💝"} {u}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label style={S.label}>Date</label>
+                  <input type="date" style={S.input} value={receiptDate} onChange={e=>setReceiptDate(e.target.value)} />
+                </div>
+              </div>
+
+              {/* Text mode */}
+              {receiptMode==="text" && (
+                <>
+                  <label style={S.label}>Paste receipt email or text</label>
+                  <textarea value={receiptText} onChange={e=>setReceiptText(e.target.value)}
+                    placeholder={"Order Confirmation - Whole Foods\n\nOrganic Bananas    $1.99\nChicken Breast     $12.49\nAlmond Milk        $4.29\nSourdough Bread    $5.99\n\nSubtotal: $24.76\nTax: $1.98\nTotal: $26.74"}
+                    style={{...S.input,height:200,resize:"vertical",lineHeight:1.7,fontSize:12,fontFamily:"monospace"}} />
+                </>
+              )}
+
+              {/* Image mode */}
+              {receiptMode==="image" && (
+                <div>
+                  <label style={S.label}>Upload photo or screenshot</label>
+                  <label style={{display:"block",cursor:"pointer"}}>
+                    <input type="file" accept="image/*" onChange={handleReceiptImageUpload} style={{display:"none"}} />
+                    <div style={{border:"2px dashed rgba(99,102,241,0.3)",borderRadius:12,padding:32,textAlign:"center",background:"rgba(99,102,241,0.04)",transition:"all 0.2s"}}>
+                      {receiptImage ? (
+                        <div>
+                          <div style={{fontSize:32,marginBottom:8}}>✅</div>
+                          <div style={{fontSize:13,color:"#34d399",fontWeight:600}}>Image loaded</div>
+                          <div style={{fontSize:11,color:"#4b5563",marginTop:4}}>Tap to replace</div>
+                        </div>
+                      ) : (
+                        <div>
+                          <div style={{fontSize:36,marginBottom:8}}>📷</div>
+                          <div style={{fontSize:14,color:"#6b7280"}}>Tap to choose photo or screenshot</div>
+                          <div style={{fontSize:11,color:"#4b5563",marginTop:4}}>JPG, PNG, HEIC supported</div>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              <button style={{...S.btn(),marginTop:14}} onClick={parseReceipt} disabled={receiptLoading||(!receiptText.trim()&&!receiptImage)}>
+                {receiptLoading?"🤖 Reading receipt…":"Extract Line Items"}
+              </button>
+              {receiptError&&<div style={{color:"#ff6b6b",fontSize:13,marginTop:10}}>{receiptError}</div>}
+            </div>
+
+            {/* Preview + import */}
+            {receiptParsed.length>0&&(
+              <div style={{...S.card,marginTop:14}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
+                  <div style={{fontWeight:700,fontSize:15}}>
+                    {receiptSelected.length} item{receiptSelected.length!==1?"s":""} selected
+                  </div>
+                  <button onClick={()=>setReceiptSelected(receiptSelected.length===receiptParsed.length?[]:receiptParsed.map(p=>p.id))}
+                    style={{fontSize:12,color:"#a5b4fc",background:"none",border:"none",cursor:"pointer",fontFamily:"'DM Sans',sans-serif"}}>
+                    {receiptSelected.length===receiptParsed.length?"Deselect all":"Select all"}
+                  </button>
+                </div>
+                <div style={{fontSize:12,color:"#4b5563",marginBottom:14}}>
+                  Total: <span style={{color:"#e8e0d5",fontWeight:700,fontFamily:"monospace"}}>${receiptParsed.filter(it=>receiptSelected.includes(it.id)).reduce((s,it)=>s+it.amount,0).toFixed(2)}</span>
+                  {" · "}{receiptDate}{" · "}{receiptUser==="You"?"👤 You":"💝 Wife"}
+                </div>
+                {receiptParsed.map((it,i)=>{
+                  const cat=categories.find(c=>c.name===it.category);
+                  const isSelected=receiptSelected.includes(it.id);
+                  return (
+                    <div key={it.id} style={{display:"flex",alignItems:"center",gap:12,padding:"11px 0",borderBottom:i<receiptParsed.length-1?"1px solid rgba(255,255,255,0.04)":"none",cursor:"pointer",opacity:isSelected?1:0.4}}
+                      onClick={()=>setReceiptSelected(s=>s.includes(it.id)?s.filter(x=>x!==it.id):[...s,it.id])}>
+                      <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${isSelected?"#6366f1":"rgba(255,255,255,0.2)"}`,background:isSelected?"#6366f1":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                        {isSelected&&<span style={{color:"#fff",fontSize:11,fontWeight:700}}>✓</span>}
+                      </div>
+                      <div style={{width:32,height:32,borderRadius:9,background:`${cat?.color||"#6366f1"}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15,flexShrink:0}}>{cat?.icon||"🧾"}</div>
+                      <div style={{flex:1}}>
+                        <div style={{fontSize:13,fontWeight:500}}>{it.description}</div>
+                        <div style={{fontSize:11,color:"#4b5563",marginTop:1}}>{it.category}</div>
+                      </div>
+                      <div style={{fontWeight:700,fontFamily:"monospace",fontSize:14}}>${it.amount.toFixed(2)}</div>
+                    </div>
+                  );
+                })}
+                {/* Tax deductible toggle */}
+                <div style={{marginTop:14,padding:"12px 14px",background:receiptTaxDeductible?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.03)",borderRadius:10,border:`1px solid ${receiptTaxDeductible?"rgba(52,211,153,0.25)":"rgba(255,255,255,0.08)"}`}}>
+                  <div style={{display:"flex",alignItems:"center",gap:10,cursor:"pointer"}} onClick={()=>setReceiptTaxDeductible(t=>!t)}>
+                    <div style={{width:20,height:20,borderRadius:6,border:`2px solid ${receiptTaxDeductible?"#34d399":"rgba(255,255,255,0.2)"}`,background:receiptTaxDeductible?"#34d399":"transparent",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                      {receiptTaxDeductible&&<span style={{color:"#000",fontSize:12,fontWeight:700}}>✓</span>}
+                    </div>
+                    <span style={{fontSize:13,color:receiptTaxDeductible?"#34d399":"#9ca3af",fontWeight:500}}>🧾 Mark all as tax deductible</span>
+                  </div>
+                  {receiptTaxDeductible&&(
+                    <div style={{marginTop:10}}>
+                      <label style={S.label}>Tax Category</label>
+                      <select style={S.input} value={receiptTaxCategory} onChange={e=>setReceiptTaxCategory(e.target.value)}>
+                        {DEFAULT_TAX_CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                      </select>
+                      <div style={{fontSize:11,color:"#34d399",marginTop:6}}>All {receiptSelected.length} selected items will be added to your Tax Bucket</div>
+                    </div>
+                  )}
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:12}}>
+                  <button style={S.btn(receiptTaxDeductible?"#10b981":undefined)} onClick={importReceipt} disabled={receiptSelected.length===0}>
+                    Import {receiptSelected.length} Item{receiptSelected.length!==1?"s":""}
+                  </button>
+                  <button onClick={()=>{setReceiptParsed([]);setReceiptSelected([]);setReceiptText("");setReceiptImage(null);setReceiptTaxDeductible(false);}}
+                    style={{flex:0.4,padding:"11px",borderRadius:12,border:"1px solid rgba(255,255,255,0.1)",background:"transparent",color:"#6b7280",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontSize:13}}>
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {view==="transactions" && (
           <div>
             <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap",alignItems:"center"}}>
-              {["All","You","Wife"].map(u=><button key={u} onClick={()=>setFilterUser(u)} style={S.chip(filterUser===u)}>{u==="Wife"?"\u{1F49D} ":u==="You"?"\u{1F464} ":""}{u}</button>)}
+              {["All","You","Wife"].map(u=><button key={u} onClick={()=>setFilterUser(u)} style={S.chip(filterUser===u)}>{u==="Wife"?"💝 ":u==="You"?"👤 ":""}{u}</button>)}
               <div style={{marginLeft:"auto",display:"flex",alignItems:"center",gap:10}}>
-                <span style={{fontSize:12,color:"#4b5563"}}>{filtered.length} \u{00B7} {getMYLabel(selectedMonth)}</span>
-                <button onClick={exportCSV} style={{padding:"6px 14px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#9ca3af",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif"}}>\u{2B07}\u{FE0F} Export CSV</button>
+                <span style={{fontSize:12,color:"#4b5563"}}>{filtered.length} · {getMYLabel(selectedMonth)}</span>
+                <button onClick={exportCSV} style={{padding:"6px 14px",borderRadius:10,border:"1px solid rgba(255,255,255,0.1)",background:"rgba(255,255,255,0.05)",color:"#9ca3af",cursor:"pointer",fontSize:12,fontFamily:"'DM Sans',sans-serif"}}>⬇️ Export CSV</button>
               </div>
             </div>
             <div style={S.card}>
@@ -247,18 +484,18 @@ export default function App() {
                 return (
                   <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"12px 0",borderBottom:i<filtered.length-1?"1px solid rgba(255,255,255,0.04)":"none"}}>
                     <div style={{display:"flex",alignItems:"center",gap:11}}>
-                      <div style={{width:38,height:38,borderRadius:11,background:`${cat?.color||"#6b7280"}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,border:`1px solid ${cat?.color||"#6b7280"}33`}}>{cat?.icon||"\u{1F4B8}"}</div>
+                      <div style={{width:38,height:38,borderRadius:11,background:`${cat?.color||"#6b7280"}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,border:`1px solid ${cat?.color||"#6b7280"}33`}}>{cat?.icon||"💸"}</div>
                       <div>
                         <div style={{fontSize:14,fontWeight:500}}>{e.description}</div>
                         <div style={{fontSize:11,color:"#4b5563",marginTop:2}}>
-                          <span style={{color:e.user==="You"?"#42A5F5":"#F06292"}}>{e.user==="You"?"\u{1F464}":"\u{1F49D}"} {e.user}</span>
-                          {" \u{00B7} "}{e.date}{" \u{00B7} "}<span style={{color:cat?.color||"#6b7280"}}>{e.category}</span>
+                          <span style={{color:e.user==="You"?"#42A5F5":"#F06292"}}>{e.user==="You"?"👤":"💝"} {e.user}</span>
+                          {" · "}{e.date}{" · "}<span style={{color:cat?.color||"#6b7280"}}>{e.category}</span>
                         </div>
                       </div>
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <div style={{fontSize:15,fontWeight:700,fontFamily:"monospace"}}>-${e.amount.toFixed(2)}</div>
-                      <button onClick={()=>deleteExpense(e.id)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,padding:"4px 8px",color:"#f87171",cursor:"pointer",fontSize:12}}>\u{2715}</button>
+                      <button onClick={()=>deleteExpense(e.id)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:7,padding:"4px 8px",color:"#f87171",cursor:"pointer",fontSize:12}}>✕</button>
                     </div>
                   </div>
                 );
@@ -272,7 +509,7 @@ export default function App() {
           const catSpend=categories.map(c=>({...c,total:expenses.filter(e=>e.category===c.name).reduce((s,e)=>s+e.amount,0)})).sort((a,b)=>b.total-a.total);
           return (
             <div style={{maxWidth:540,margin:"0 auto"}}>
-              <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>\u{1F4C8} Spending Trends</div>
+              <div style={{fontSize:18,fontWeight:700,marginBottom:16}}>📈 Spending Trends</div>
               <div style={S.card}>
                 <div style={{fontSize:11,fontWeight:600,color:"#9ca3af",textTransform:"uppercase",marginBottom:14}}>Last 6 Months</div>
                 <div style={{display:"flex",alignItems:"flex-end",gap:8,height:120}}>
@@ -308,7 +545,7 @@ export default function App() {
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:4}}>
               <div style={{fontSize:18,fontWeight:700}}>Budgets & Categories</div>
               <button onClick={()=>setShowNewCat(s=>!s)} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(99,102,241,0.4)",background:"rgba(99,102,241,0.1)",color:"#a5b4fc",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13}}>
-                {showNewCat?"\u{2715} Cancel":"+ Category"}
+                {showNewCat?"✕ Cancel":"+ Category"}
               </button>
             </div>
             <div style={{fontSize:13,color:"#6b7280",marginBottom:14}}>Total: ${Object.values(effectiveBudgets).reduce((a,b)=>a+b,0).toLocaleString()}/mo</div>
@@ -332,7 +569,7 @@ export default function App() {
                     <input type="number" defaultValue={effectiveBudgets[c.name]} style={{...S.input,padding:"5px 9px",fontSize:13}} onBlur={e=>saveBudget(c.name,e.target.value)} />
                   </div>
                   {!DEFAULT_CATS.includes(c.name)&&(
-                    <button onClick={()=>deleteCategory(c.name)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"6px 10px",color:"#f87171",cursor:"pointer",fontSize:13}}>\u{2715}</button>
+                    <button onClick={()=>deleteCategory(c.name)} style={{background:"rgba(239,68,68,0.1)",border:"1px solid rgba(239,68,68,0.2)",borderRadius:8,padding:"6px 10px",color:"#f87171",cursor:"pointer",fontSize:13}}>✕</button>
                   )}
                 </div>
               ))}
@@ -349,11 +586,11 @@ export default function App() {
           const yearMonths=Array.from({length:12},(_,i)=>`${curYear}-${String(i+1).padStart(2,"0")}`).filter(m=>m<=thisMonthKey());
           return (
             <div style={{maxWidth:620,margin:"0 auto"}}>
-              <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>\u{1F4B0} Income & Savings</div>
+              <div style={{fontSize:18,fontWeight:700,marginBottom:4}}>💰 Income & Savings</div>
               <div style={{fontSize:13,color:"#6b7280",marginBottom:16}}>{getMYLabel(selectedMonth)}</div>
               <div style={{...S.card,marginBottom:12,padding:22}}>
                 <div style={S.sectionTitle}>Monthly Income</div>
-                {[["youSalary","\u{1F464} Your Take-Home Pay"],["wifeSalary","\u{1F49D} Wife's Take-Home Pay"],["otherIncome","\u{2795} Other Income"]].map(([field,label])=>(
+                {[["youSalary","👤 Your Take-Home Pay"],["wifeSalary","💝 Wife's Take-Home Pay"],["otherIncome","➕ Other Income"]].map(([field,label])=>(
                   <div key={field} style={{marginBottom:12}}>
                     <label style={S.label}>{label}</label>
                     <input type="number" defaultValue={income[field]||""} placeholder="0" style={S.input} onBlur={e=>handleIncomeSave(field,e.target.value)} />
@@ -366,7 +603,7 @@ export default function App() {
               </div>
               <div style={{...S.card,marginBottom:12,padding:22}}>
                 <div style={S.sectionTitle}>Automatic Savings</div>
-                {[["auto401k","\u{1F3E6} 401k / Retirement"],["autoOther","\u{1F4C8} Other Auto-Invest / HSA"]].map(([field,label])=>(
+                {[["auto401k","🏦 401k / Retirement"],["autoOther","📈 Other Auto-Invest / HSA"]].map(([field,label])=>(
                   <div key={field} style={{marginBottom:12}}>
                     <label style={S.label}>{label}</label>
                     <input type="number" defaultValue={income[field]||""} placeholder="0" style={S.input} onBlur={e=>handleIncomeSave(field,e.target.value)} />
@@ -374,20 +611,20 @@ export default function App() {
                 ))}
               </div>
               <div style={{...S.card,marginBottom:12,padding:22}}>
-                <div style={S.sectionTitle}>Monthly Savings \u{2014} {getMYLabel(selectedMonth)}</div>
+                <div style={S.sectionTitle}>Monthly Savings — {getMYLabel(selectedMonth)}</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:12}}>
                   <div>
-                    <label style={S.label}>\u{1F3AF} Target ($)</label>
+                    <label style={S.label}>🎯 Target ($)</label>
                     <input type="number" defaultValue={income.savingsTarget||""} placeholder="0" style={S.input} onBlur={e=>handleIncomeSave("savingsTarget",e.target.value)} />
                   </div>
                   <div>
-                    <label style={S.label}>\u{2705} Actual Saved ($)</label>
+                    <label style={S.label}>✅ Actual Saved ($)</label>
                     <input key={selectedMonth} type="number" defaultValue={actualThisMonth||""} placeholder="0"
                       style={{...S.input,borderColor:actualThisMonth>0?"rgba(16,185,129,0.4)":"rgba(255,255,255,0.1)"}}
                       onBlur={e=>handleActualSavingsSave(selectedMonth,e.target.value)} />
                     {actualThisMonth>0&&targetThisMonth>0&&(
                       <div style={{fontSize:11,marginTop:4,color:actualThisMonth>=targetThisMonth?"#34d399":"#ff6b6b",fontWeight:600}}>
-                        {actualThisMonth>=targetThisMonth?`+$${(actualThisMonth-targetThisMonth).toFixed(0)} ahead \u{1F389}`:`-$${(targetThisMonth-actualThisMonth).toFixed(0)} short`}
+                        {actualThisMonth>=targetThisMonth?`+$${(actualThisMonth-targetThisMonth).toFixed(0)} ahead 🎉`:`-$${(targetThisMonth-actualThisMonth).toFixed(0)} short`}
                       </div>
                     )}
                   </div>
@@ -395,7 +632,7 @@ export default function App() {
               </div>
               {ytdAllMonths.length>0&&(
                 <div style={{...S.card,padding:22,background:"rgba(16,185,129,0.05)",border:"1px solid rgba(16,185,129,0.15)"}}>
-                  <div style={{fontSize:11,fontWeight:600,color:"#34d399",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.5px"}}>\u{1F4CA} YTD Savings \u{2014} {curYear}</div>
+                  <div style={{fontSize:11,fontWeight:600,color:"#34d399",marginBottom:14,textTransform:"uppercase",letterSpacing:"0.5px"}}>📊 YTD Savings — {curYear}</div>
                   <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:16}}>
                     <div style={{textAlign:"center",padding:14,background:"rgba(255,255,255,0.04)",borderRadius:12}}>
                       <div style={{fontSize:11,color:"#6b7280",marginBottom:6,textTransform:"uppercase"}}>Saved YTD</div>
@@ -415,7 +652,7 @@ export default function App() {
                         <div style={{flex:1,height:5,background:"rgba(255,255,255,0.06)",borderRadius:99,overflow:"hidden"}}>
                           {actual>0&&<div style={{height:"100%",width:`${pct}%`,borderRadius:99,background:actual>=target&&target>0?"linear-gradient(90deg,#10b981,#34d399)":"linear-gradient(90deg,#6366f1,#8b5cf6)"}} />}
                         </div>
-                        <div style={{fontSize:12,fontFamily:"monospace",fontWeight:600,color:actual>0?(actual>=target&&target>0?"#34d399":"#a5b4fc"):"#374151",width:64,textAlign:"right"}}>{actual>0?`$${actual.toFixed(0)}`:"\u{2014}"}</div>
+                        <div style={{fontSize:12,fontFamily:"monospace",fontWeight:600,color:actual>0?(actual>=target&&target>0?"#34d399":"#a5b4fc"):"#374151",width:64,textAlign:"right"}}>{actual>0?`$${actual.toFixed(0)}`:"—"}</div>
                       </div>
                     );
                   })}
@@ -436,9 +673,9 @@ export default function App() {
           return (
             <div style={{maxWidth:560,margin:"0 auto"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-                <div style={{fontSize:18,fontWeight:700}}>\u{1F3AF} Savings Goals</div>
+                <div style={{fontSize:18,fontWeight:700}}>🎯 Savings Goals</div>
                 <button onClick={()=>setShowNewGoal(s=>!s)} style={{padding:"8px 16px",borderRadius:10,border:"1px solid rgba(99,102,241,0.4)",background:"rgba(99,102,241,0.1)",color:"#a5b4fc",cursor:"pointer",fontFamily:"'DM Sans',sans-serif",fontWeight:600,fontSize:13}}>
-                  {showNewGoal?"\u{2715} Cancel":"+ New Goal"}
+                  {showNewGoal?"✕ Cancel":"+ New Goal"}
                 </button>
               </div>
               {showNewGoal&&(
@@ -455,7 +692,7 @@ export default function App() {
               )}
               {goals.length===0&&!showNewGoal&&(
                 <div style={{...S.card,textAlign:"center",padding:48}}>
-                  <div style={{fontSize:40,marginBottom:12}}>\u{1F3AF}</div>
+                  <div style={{fontSize:40,marginBottom:12}}>🎯</div>
                   <div style={{fontSize:16,fontWeight:600,marginBottom:6}}>No goals yet</div>
                   <div style={{fontSize:13,color:"#6b7280"}}>Create your first savings goal.</div>
                 </div>
@@ -472,11 +709,11 @@ export default function App() {
                       <div style={{display:"flex",gap:12,alignItems:"center"}}>
                         <div style={{width:44,height:44,borderRadius:13,background:`${g.color}22`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22}}>{g.icon}</div>
                         <div>
-                          <div style={{fontSize:15,fontWeight:700}}>{g.name}{done&&" \u{1F389}"}</div>
+                          <div style={{fontSize:15,fontWeight:700}}>{g.name}{done&&" 🎉"}</div>
                           {g.deadline&&<div style={{fontSize:11,color:"#4b5563"}}>Due {g.deadline}</div>}
                         </div>
                       </div>
-                      <button onClick={()=>deleteGoal(g.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:8,padding:"4px 10px",color:"#f87171",cursor:"pointer",fontSize:12}}>\u{2715}</button>
+                      <button onClick={()=>deleteGoal(g.id)} style={{background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.15)",borderRadius:8,padding:"4px 10px",color:"#f87171",cursor:"pointer",fontSize:12}}>✕</button>
                     </div>
                     <div style={{display:"flex",justifyContent:"space-between",marginBottom:6}}>
                       <span style={{fontSize:13,color:"#9ca3af"}}>${saved.toFixed(0)} saved</span>
@@ -507,10 +744,10 @@ export default function App() {
                       <div style={{marginTop:12,borderTop:"1px solid rgba(255,255,255,0.05)",paddingTop:10}}>
                         {[...(g.contributions||[])].reverse().slice(0,3).map(c=>(
                           <div key={c.id} style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                            <span style={{fontSize:12,color:"#4b5563"}}>{c.date}{c.note&&` \u{00B7} ${c.note}`}</span>
+                            <span style={{fontSize:12,color:"#4b5563"}}>{c.date}{c.note&&` · ${c.note}`}</span>
                             <div style={{display:"flex",gap:8}}>
                               <span style={{fontSize:12,fontFamily:"monospace",color:g.color}}>+${c.amount}</span>
-                              <button onClick={()=>deleteContrib(g.id,c.id)} style={{fontSize:10,color:"#4b5563",background:"none",border:"none",cursor:"pointer"}}>\u{2715}</button>
+                              <button onClick={()=>deleteContrib(g.id,c.id)} style={{fontSize:10,color:"#4b5563",background:"none",border:"none",cursor:"pointer"}}>✕</button>
                             </div>
                           </div>
                         ))}
