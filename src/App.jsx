@@ -51,8 +51,8 @@ export default function App() {
   if (loading) return (
     <div style={{ ...S.app, display:"flex", alignItems:"center", justifyContent:"center", minHeight:"100vh" }}>
       <div style={{ textAlign:"center" }}>
-        <div style={{ fontSize:40, marginBottom:12 }}>\u{1F4B8}</div>
-        <div style={{ fontSize:16, color:"#6b7280" }}>Loading Peace of Mind\u2026</div>
+        <div style={{ fontSize:40, marginBottom:12 }}>💸</div>
+        <div style={{ fontSize:16, color:"#6b7280" }}>Loading Peace of Mind…</div>
       </div>
     </div>
   );
