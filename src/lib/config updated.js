@@ -28,7 +28,7 @@ export const GOAL_ICONS = ["🎯","✈️","🏖️","🚗","🏠","💍","👶"
 export const ASSET_CATEGORIES  = ["Checking/Savings","Investment/401k","Home Value","Car Value","Other Asset"];
 export const DEBT_CATEGORIES   = ["Mortgage","Car Loan","Student Loan","Credit Card","Other Debt"];
 export const BILL_FREQUENCIES  = ["Monthly","Bi-weekly","Weekly","Quarterly","Annually"];
-export const TAX_CATEGORIES    = ["Home Office","Medical","Charitable","Business Meals","Education","Childcare","Investment Loss","Other"];
+export const TAX_CATEGORIES    = ["Home Office","Medical","Charitable","Business Meals","Education","Childcare","Investment Loss","Other"];export const DEFAULT_TAX_CATEGORIES = TAX_CATEGORIES;
 
 export function getMYKey(date) {
   const d = new Date(date + "T12:00:00");
