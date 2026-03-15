@@ -2,8 +2,8 @@ import { createClient } from "@supabase/supabase-js";
 
 // ── Supabase config ─────────────────────────────────────────
 // Replace these two values with your own from supabase.com
-export const SUPABASE_URL = "https://fgsqczpfrakcrlyerxay.supabase.co";
-export const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnc3FjenBmcmFrY3JseWVyeGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyODM2NDIsImV4cCI6MjA4ODg1OTY0Mn0._lN2GxfMK8r_qD5nn4CsFmZ3Qenm3jXVmqPDsuroQhQ";
+const SUPABASE_URL = "https://fgsqczpfrakcrlyerxay.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZnc3FjenBmcmFrY3JseWVyeGF5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMyODM2NDIsImV4cCI6MjA4ODg1OTY0Mn0._lN2GxfMK8r_qD5nn4CsFmZ3Qenm3jXVmqPDsuroQhQ";
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // ────────────────────────────────────────────────────────────
 
